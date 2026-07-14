@@ -67,6 +67,14 @@ coded-index tag types, no `#US` heap, no generics signature decoding (yet —
 it lands here when go-bindings-winrt needs it; the Win32/WDK metadata
 contains none).
 
+## Documentation
+
+- [Getting started](docs/getting-started.md) — open a file, iterate tables,
+  decode signatures and attributes
+- [ECMA-335 notes](docs/ecma335-notes.md) — materialized vs sized-only tables,
+  the non-goals, comparison vs microsoft/go-winmd
+- [`CLAUDE.md`](CLAUDE.md) — the as-built architecture
+
 ## License
 
 [MIT](LICENSE).
