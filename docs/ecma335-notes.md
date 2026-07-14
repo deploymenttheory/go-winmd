@@ -33,11 +33,25 @@ These are deliberate non-goals (see the package doc), not gaps:
   concrete `{Table, Row}` pair — strictly more informative than a tag+index.
 - **No table-layout code generation.** `tableSchemas` is the hand-transcribed
   §II.22 layout; a schema-consistency test guards transcription errors.
-- **No generics / BYREF / multi-rank arrays in signatures.** The Win32 and WDK
-  winmds contain none (the brute-force suites assert this), so such constructs
-  return a structured error rather than being silently mis-decoded. Generics
-  support will land here — versioned and additive — when `go-bindings-winrt`
-  needs it (`IVector<T>` and friends).
+- **No BYREF / multi-rank arrays in signatures.** The Win32 and WDK winmds
+  contain none (the brute-force suites assert this), so such constructs return
+  a structured error rather than being silently mis-decoded.
+
+## Generics (the WinRT foundation)
+
+Generics **are** decoded, as the shared foundation for `go-bindings-winrt`:
+
+- Signatures: `GENERICINST` → `SigGenericInst` (with `GenericArgs`), `VAR` →
+  `SigVar`, `MVAR` → `SigMVar` (with `GenericIndex`), all in `TypeSig`.
+- Tables: `GenericParam` (§II.22.20) and `GenericParamConstraint` (§II.22.21)
+  are materialized; `TypeSpecSignature` decodes a TypeSpec blob (§II.23.2.14).
+
+The Win32 and WDK winmds contain **zero** generic constructs — `TestWin32HasNoGenerics`
+asserts this — so this support is inert for those projections and their
+generated output is unaffected. It exists for WinRT metadata (`IVector<T>`,
+`IAsyncOperation<T>`, parameterized delegates/events). The WinRT *emitter* and
+*runtime* (HSTRING, IInspectable, activation) remain future work; this is only
+the reader layer.
 
 ## Comparison with microsoft/go-winmd
 

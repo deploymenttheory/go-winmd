@@ -51,6 +51,10 @@ const (
 	SigArray                        // Child is the element, ArrayLen the fixed size
 	SigSZArray                      // Child is the element (no fixed size)
 	SigFuncPtr                      // FuncSig holds the target signature
+	// Generics (WinRT and other managed metadata; absent from Win32/WDK):
+	SigGenericInst // Namespace/Name is the generic type; GenericArgs the args
+	SigVar         // a type generic parameter; GenericIndex is its position
+	SigMVar        // a method generic parameter; GenericIndex is its position
 )
 
 // TypeSig is the decoded, recursive form of an ECMA-335 Type production
@@ -60,8 +64,8 @@ type TypeSig struct {
 	Kind      TypeSigKind
 	Primitive ElementType // SigPrimitive
 
-	// SigNamed: the referenced type. IsValueType records whether the token
-	// used VALUETYPE (struct/enum) or CLASS (COM interface, Attribute, …).
+	// SigNamed / SigGenericInst: the referenced type. IsValueType records
+	// whether the token used VALUETYPE (struct/enum) or CLASS.
 	Namespace   string
 	Name        string
 	IsValueType bool
@@ -70,6 +74,12 @@ type TypeSig struct {
 	ArrayLen uint32   // SigArray fixed length
 
 	FuncSig *MethodSig // SigFuncPtr target
+
+	// GenericArgs holds the type arguments of a SigGenericInst (e.g. the T
+	// of IVector`1<T>).
+	GenericArgs []TypeSig
+	// GenericIndex is the parameter position of a SigVar/SigMVar (0-based).
+	GenericIndex uint32
 
 	// IsConst is set when the signature carried a modreq/modopt of
 	// System.Runtime.CompilerServices.IsConst.
@@ -207,10 +217,47 @@ func (f *File) decodeTypeSig(reader *blobReader) TypeSig {
 		sig.Kind = SigFuncPtr
 		sig.FuncSig = &funcSig
 
+	case ElemGenericInst:
+		// GENERICINST (CLASS|VALUETYPE) TypeDefOrRef GenArgCount Type*
+		// (§II.23.2.12). E.g. IVector`1<HSTRING>.
+		valueType := ElementType(reader.byte())
+		sig.Kind = SigGenericInst
+		sig.IsValueType = valueType == ElemValueType
+		sig.Namespace, sig.Name = f.resolveTypeToken(reader.compressedUint())
+		argCount := reader.compressedUint()
+		sig.GenericArgs = make([]TypeSig, 0, min(int(argCount), reader.remaining()))
+		for i := uint32(0); i < argCount && !reader.failed(); i++ {
+			sig.GenericArgs = append(sig.GenericArgs, f.decodeTypeSig(reader))
+		}
+
+	case ElemVar:
+		sig.Kind = SigVar
+		sig.GenericIndex = reader.compressedUint()
+
+	case ElemMVar:
+		sig.Kind = SigMVar
+		sig.GenericIndex = reader.compressedUint()
+
 	default:
 		reader.setErr(fmt.Sprintf("unsupported element type 0x%02x", byte(elem)))
 	}
 	return sig
+}
+
+// TypeSpecSignature decodes the TypeSpec blob (§II.23.2.14) at the given
+// #Blob offset — the type behind a TypeSpec-tagged coded index (e.g. a
+// generic base interface `IIterable`1<T>`).
+func (f *File) TypeSpecSignature(blobOffset uint32) (TypeSig, error) {
+	blob := f.Blobs.Get(blobOffset)
+	if blob == nil {
+		return TypeSig{}, fmt.Errorf("typespec blob 0x%x out of range", blobOffset)
+	}
+	reader := blobReader{data: blob}
+	sig := f.decodeTypeSig(&reader)
+	if reader.err != nil {
+		return TypeSig{}, reader.err
+	}
+	return sig, nil
 }
 
 // resolveTypeToken resolves a TypeDefOrRefEncoded compressed token

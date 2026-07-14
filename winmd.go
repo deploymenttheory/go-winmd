@@ -26,10 +26,13 @@
 //     §II.22 column layout for all 45 tables.
 //   - No #US heap: user strings are IL plumbing, never referenced by winmd
 //     projections.
-//   - No generics/BYREF/multi-rank-array signature decoding: absent from
-//     the Win32 winmd (the brute-force test suites prove it); such
-//     constructs fail with a structured error rather than silently
-//     mis-decoding.
+//   - No BYREF/multi-rank-array signature decoding: absent from the Win32
+//     winmd (the brute-force test suites prove it); such constructs fail
+//     with a structured error rather than silently mis-decoding.
+//
+// Generics (GENERICINST/VAR/MVAR signatures and the GenericParam tables) ARE
+// decoded, for WinRT-style metadata; the Win32/WDK winmds contain none (a
+// tripwire test asserts this), so that support is inert for those projections.
 package winmd
 
 import (

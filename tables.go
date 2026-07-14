@@ -335,25 +335,42 @@ type NestedClassRow struct {
 	EnclosingClass uint32 // TypeDef row
 }
 
+// GenericParamRow is a GenericParam table row (§II.22.20). Present in WinRT
+// and other managed metadata; absent from the Win32/WDK winmds.
+type GenericParamRow struct {
+	Number uint16     // 0-based position in the owner's parameter list
+	Flags  uint16     // GenericParamAttributes (variance + constraints)
+	Owner  CodedIndex // TypeOrMethodDef: the generic type or method
+	Name   string
+}
+
+// GenericParamConstraintRow is a GenericParamConstraint table row (§II.22.21).
+type GenericParamConstraintRow struct {
+	Owner      uint32     // GenericParam row
+	Constraint CodedIndex // TypeDefOrRef the parameter must satisfy
+}
+
 // Tables holds the decoded metadata tables.
 type Tables struct {
 	rowCounts [tableCount]uint32
 
-	TypeRefs         []TypeRefRow
-	TypeDefs         []TypeDefRow
-	Fields           []FieldRow
-	Methods          []MethodDefRow
-	Params           []ParamRow
-	InterfaceImpls   []InterfaceImplRow
-	MemberRefs       []MemberRefRow
-	Constants        []ConstantRow
-	CustomAttributes []CustomAttributeRow
-	ClassLayouts     []ClassLayoutRow
-	FieldLayouts     []FieldLayoutRow
-	ModuleRefs       []string
-	TypeSpecs        []uint32 // #Blob offsets
-	ImplMaps         []ImplMapRow
-	NestedClasses    []NestedClassRow
+	TypeRefs                []TypeRefRow
+	TypeDefs                []TypeDefRow
+	Fields                  []FieldRow
+	Methods                 []MethodDefRow
+	Params                  []ParamRow
+	InterfaceImpls          []InterfaceImplRow
+	MemberRefs              []MemberRefRow
+	Constants               []ConstantRow
+	CustomAttributes        []CustomAttributeRow
+	ClassLayouts            []ClassLayoutRow
+	FieldLayouts            []FieldLayoutRow
+	ModuleRefs              []string
+	TypeSpecs               []uint32 // #Blob offsets
+	ImplMaps                []ImplMapRow
+	NestedClasses           []NestedClassRow
+	GenericParams           []GenericParamRow
+	GenericParamConstraints []GenericParamConstraintRow
 }
 
 // tableDecoder walks the raw #~ table data with pre-computed column sizes.
@@ -509,6 +526,22 @@ func (t *Tables) parse(stream []byte, strings StringHeap, blobs BlobHeap, guids 
 		case TableNestedClass:
 			t.NestedClasses = decodeRows(decoder, tableID, count, func(r *rowReader) NestedClassRow {
 				return NestedClassRow{NestedClass: r.index(TableTypeDef), EnclosingClass: r.index(TableTypeDef)}
+			})
+		case TableGenericParam:
+			t.GenericParams = decodeRows(decoder, tableID, count, func(r *rowReader) GenericParamRow {
+				return GenericParamRow{
+					Number: r.uint16(),
+					Flags:  r.uint16(),
+					Owner:  r.coded(codedTypeOrMethodDef),
+					Name:   r.string(),
+				}
+			})
+		case TableGenericParamConstraint:
+			t.GenericParamConstraints = decodeRows(decoder, tableID, count, func(r *rowReader) GenericParamConstraintRow {
+				return GenericParamConstraintRow{
+					Owner:      r.index(TableGenericParam),
+					Constraint: r.coded(codedTypeDefOrRef),
+				}
 			})
 		default:
 			decoder.skipTable(tableID, count)
