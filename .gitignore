@@ -48,3 +48,5 @@ __pycache__/
 *.exe
 *.dylib
 *.so
+# Test fixture (fetched on demand, pinned by testdata/PROVENANCE.json)
+testdata/*.winmd

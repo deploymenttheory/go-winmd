@@ -1,75 +1,72 @@
-# Template
+# go-winmd
 
-This repository serves as a **Default Template Repository** according official [GitHub Contributing Guidelines][ProjectSetup] for healthy contributions. It brings you clean default Templates for several areas:
+[![Go Reference](https://pkg.go.dev/badge/github.com/deploymenttheory/go-winmd.svg)](https://pkg.go.dev/github.com/deploymenttheory/go-winmd)
+[![CI](https://github.com/deploymenttheory/go-winmd/actions/workflows/ci.yml/badge.svg)](https://github.com/deploymenttheory/go-winmd/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-- [Azure DevOps Pull Requests](.azuredevops/PULL_REQUEST_TEMPLATE.md) ([`.azuredevops\PULL_REQUEST_TEMPLATE.md`](`.azuredevops\PULL_REQUEST_TEMPLATE.md`))
-- [Azure Pipelines](.pipelines/pipeline.yml) ([`.pipelines/pipeline.yml`](`.pipelines/pipeline.yml`))
-- [GitHub Workflows](.github/workflows/)
-  - [Super Linter](.github/workflows/linter.yml) ([`.github/workflows/linter.yml`](`.github/workflows/linter.yml`))
-  - [Sample Workflows](.github/workflows/workflow.yml) ([`.github/workflows/workflow.yml`](`.github/workflows/workflow.yml`))
-- [GitHub Pull Requests](.github/PULL_REQUEST_TEMPLATE.md) ([`.github/PULL_REQUEST_TEMPLATE.md`](`.github/PULL_REQUEST_TEMPLATE.md`))
-- [GitHub Issues](.github/ISSUE_TEMPLATE/)
-  - [Feature Requests](.github/ISSUE_TEMPLATE/FEATURE_REQUEST.md) ([`.github/ISSUE_TEMPLATE/FEATURE_REQUEST.md`](`.github/ISSUE_TEMPLATE/FEATURE_REQUEST.md`))
-  - [Bug Reports](.github/ISSUE_TEMPLATE/BUG_REPORT.md) ([`.github/ISSUE_TEMPLATE/BUG_REPORT.md`](`.github/ISSUE_TEMPLATE/BUG_REPORT.md`))
-- [Codeowners](.github/CODEOWNERS) ([`.github/CODEOWNERS`](`.github/CODEOWNERS`)) _adjust usernames once cloned_
-- [Wiki and Documentation](docs/) ([`docs/`](`docs/`))
-- [gitignore](.gitignore) ([`.gitignore`](.gitignore))
-- [gitattributes](.gitattributes) ([`.gitattributes`](.gitattributes))
-- [Changelog](CHANGELOG.md) ([`CHANGELOG.md`](`CHANGELOG.md`))
-- [Code of Conduct](CODE_OF_CONDUCT.md) ([`CODE_OF_CONDUCT.md`](`CODE_OF_CONDUCT.md`))
-- [Contribution](CONTRIBUTING.md) ([`CONTRIBUTING.md`](`CONTRIBUTING.md`))
-- [License](LICENSE) ([`LICENSE`](`LICENSE`)) _adjust projectname once cloned_
-- [Readme](README.md) ([`README.md`](`README.md`))
-- [Security](SECURITY.md) ([`SECURITY.md`](`SECURITY.md`))
+A native Go reader for ECMA-335 metadata files (`.winmd`), aligned with the
+**ECMA-335 6th edition** standard. Standard library only — no .NET, no cgo,
+no dependencies.
 
+This is the shared foundation of the deploymenttheory Windows bindings
+family: [go-bindings-win32](https://github.com/deploymenttheory/go-bindings-win32),
+go-bindings-wdk, and (planned) go-bindings-winrt all generate from metadata
+parsed by this module.
 
-## Status
+## What it does
 
-[![Super Linter](<https://github.com/segraef/Template/actions/workflows/linter.yml/badge.svg>)](<https://github.com/segraef/Template/actions/workflows/linter.yml>)
+- **PE container → CLI metadata root → heaps → tables**: parses `#~` and
+  `#-` table streams, `#Strings`/`#Blob`/`#GUID` heaps, with every exported
+  symbol carrying its §II.x specification reference.
+- **All 45 ECMA-335 tables** sized and skipped correctly; the 15 tables the
+  Windows metadata projections need are materialized into typed rows, with
+  typed `Table` IDs and typed bitmask columns (`TypeAttributes`,
+  `ParamAttributes`, `PInvokeAttributes`, …) in specification vocabulary.
+- **Signature blobs** (`MethodDefSig`, `FieldSig`, §II.23.2) decoded into a
+  recursive `TypeSig` grammar.
+- **Custom-attribute values decoded** (§II.23.3) — fixed and named arguments,
+  not just raw blobs — plus `Constant`-table value decoding. These are the
+  pieces most winmd readers omit.
+- **Hardened against hostile input**: untrusted lengths and row indices are
+  bounds-checked and allocation-clamped; corrupt files return errors, never
+  panic or over-allocate.
 
-[![Sample Workflow](<https://github.com/segraef/Template/actions/workflows/workflow.yml/badge.svg>)](<https://github.com/segraef/Template/actions/workflows/workflow.yml>)
+Tested by brute force: every one of the ~318k signatures and ~152k custom
+attributes in the pinned `Windows.Win32.winmd` must decode with zero
+failures (`testdata/PROVENANCE.json` pins the fixture; it is fetched on
+demand and sha256-verified).
 
-## Creating a repository from a template
+## Usage
 
-You can [generate](https://github.com/segraef/Template/generate) a new repository with the same directory structure and files as an existing repository. More details can be found [here][CreateFromTemplate].
+```go
+import "github.com/deploymenttheory/go-winmd"
 
-## Reporting Issues and Feedback
+file, err := winmd.Open("Windows.Win32.winmd")
+if err != nil { /* ... */ }
 
-### Issues and Bugs
+for i := range file.Tables.TypeDefs {
+    td := &file.Tables.TypeDefs[i]
+    if td.Flags&winmd.TypeAttrInterface != 0 {
+        fmt.Println(td.Namespace, td.Name, "COM interface")
+    }
+}
 
-If you find any bugs, please file an issue in the [GitHub Issues][GitHubIssues] page. Please fill out the provided template with the appropriate information.
+sig, err := file.MethodSignature(file.Tables.Methods[0].Signature)
+attrs := file.AttributesFor(winmd.CodedIndex{Table: winmd.TableTypeDef, Row: 1})
+```
 
-If you are taking the time to mention a problem, even a seemingly minor one, it is greatly appreciated, and a totally valid contribution to this project. **Thank you!**
+The `nuget` subpackage downloads winmd files from NuGet (flat-container API)
+with provenance records — used by the bindings generators' `fetch-metadata`
+commands and by this module's own test fixture.
 
-## Feedback
+## Non-goals
 
-If there is a feature you would like to see in here, please file an issue or feature request in the [GitHub Issues][GitHubIssues] page to provide direct feedback.
+Deliberately scoped to what the Windows metadata projections need (recorded
+in the package documentation): no lazy per-row table access, no generic
+coded-index tag types, no `#US` heap, no generics signature decoding (yet —
+it lands here when go-bindings-winrt needs it; the Win32/WDK metadata
+contains none).
 
-## Contribution
+## License
 
-If you would like to become an active contributor to this repository or project, please follow the instructions provided in [`CONTRIBUTING.md`][Contributing].
-
-## Learn More
-
-* [GitHub Documentation][GitHubDocs]
-* [Azure DevOps Documentation][AzureDevOpsDocs]
-* [Microsoft Azure Documentation][MicrosoftAzureDocs]
-
-<!-- References -->
-
-<!-- Local -->
-[ProjectSetup]: <https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions>
-[CreateFromTemplate]: <https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/creating-a-repository-on-github/creating-a-repository-from-a-template>
-[GitHubDocs]: <https://docs.github.com/>
-[AzureDevOpsDocs]: <https://docs.microsoft.com/en-us/azure/devops/?view=azure-devops>
-[GitHubIssues]: <https://github.com/segraef/Template/issues>
-[Contributing]: CONTRIBUTING.md
-
-<!-- External -->
-[Az]: <https://img.shields.io/powershellgallery/v/Az.svg?style=flat-square&label=Az>
-[AzGallery]: <https://www.powershellgallery.com/packages/Az/>
-[PowerShellCore]: <https://github.com/PowerShell/PowerShell/releases/latest>
-
-<!-- Docs -->
-[MicrosoftAzureDocs]: <https://docs.microsoft.com/en-us/azure/>
-[PowerShellDocs]: <https://docs.microsoft.com/en-us/powershell/>
+[MIT](LICENSE).
