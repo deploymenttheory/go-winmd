@@ -50,8 +50,31 @@ The Win32 and WDK winmds contain **zero** generic constructs — `TestWin32HasNo
 asserts this — so this support is inert for those projections and their
 generated output is unaffected. It exists for WinRT metadata (`IVector<T>`,
 `IAsyncOperation<T>`, parameterized delegates/events). The WinRT *emitter* and
-*runtime* (HSTRING, IInspectable, activation) remain future work; this is only
-the reader layer.
+*runtime* (HSTRING, IInspectable, activation) live in `go-bindings-winrt`;
+this is only the reader layer.
+
+## Events and properties (the WinRT member model)
+
+The WinRT member tables **are** materialized, completing the reader
+prerequisites for `go-bindings-winrt`:
+
+- Tables: `Event`/`EventMap` (§II.22.13/12), `Property`/`PropertyMap`
+  (§II.22.34/35), and `MethodSemantics` (§II.22.28) binding `get_`/`put_`/
+  `add_`/`remove_` accessor methods to their property or event. The map
+  tables carry 1-based half-open ranges (`EventFirst`/`EventEnd`,
+  `PropertyFirst`/`PropertyEnd`), same as the TypeDef field/method lists.
+- Signatures: `PropertySignature` decodes the PropertySig blob (§II.23.2.5,
+  marker 0x08, masked because HASTHIS 0x20 combines with it).
+- Flags: `EventAttributes`, `PropertyAttributes`, `MethodSemanticsAttributes`
+  (§II.23.1.4/14/12).
+
+The brute-force suites run against a second pinned fixture, the
+`Windows.Foundation.UniversalApiContract.winmd` from the
+`Microsoft.Windows.SDK.Contracts` NuGet package (that package ships ~94
+per-contract winmds — there is no merged `Windows.winmd` on NuGet; its
+`Windows.WinMD` entry is a type-forwarder facade). The Win32 winmd contains
+**zero** event/property rows — `TestWin32HasNoEventsOrProperties` asserts
+this — so the addition is inert for the Win32/WDK projections.
 
 ## Comparison with microsoft/go-winmd
 

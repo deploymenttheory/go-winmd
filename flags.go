@@ -368,6 +368,68 @@ func (a PInvokeAttributes) String() string {
 	return joinFlags(parts, uint32(a))
 }
 
+// EventAttributes is the Event EventFlags column (§II.23.1.4).
+type EventAttributes uint16
+
+const (
+	EventAttrSpecialName   EventAttributes = 0x0200
+	EventAttrRTSpecialName EventAttributes = 0x0400
+)
+
+// String renders the set attributes in specification vocabulary.
+func (a EventAttributes) String() string {
+	parts := appendFlagNames(nil, uint32(a), []flagName{
+		{uint32(EventAttrSpecialName), "SpecialName"},
+		{uint32(EventAttrRTSpecialName), "RTSpecialName"},
+	})
+	return joinFlags(parts, uint32(a))
+}
+
+// PropertyAttributes is the Property Flags column (§II.23.1.14).
+type PropertyAttributes uint16
+
+const (
+	PropertyAttrSpecialName   PropertyAttributes = 0x0200
+	PropertyAttrRTSpecialName PropertyAttributes = 0x0400
+	PropertyAttrHasDefault    PropertyAttributes = 0x1000
+)
+
+// String renders the set attributes in specification vocabulary.
+func (a PropertyAttributes) String() string {
+	parts := appendFlagNames(nil, uint32(a), []flagName{
+		{uint32(PropertyAttrSpecialName), "SpecialName"},
+		{uint32(PropertyAttrRTSpecialName), "RTSpecialName"},
+		{uint32(PropertyAttrHasDefault), "HasDefault"},
+	})
+	return joinFlags(parts, uint32(a))
+}
+
+// MethodSemanticsAttributes is the MethodSemantics Semantics column
+// (§II.23.1.12).
+type MethodSemanticsAttributes uint16
+
+const (
+	MethodSemanticsSetter   MethodSemanticsAttributes = 0x0001 // msSetter: put_
+	MethodSemanticsGetter   MethodSemanticsAttributes = 0x0002 // msGetter: get_
+	MethodSemanticsOther    MethodSemanticsAttributes = 0x0004 // msOther
+	MethodSemanticsAddOn    MethodSemanticsAttributes = 0x0008 // msAddOn: add_
+	MethodSemanticsRemoveOn MethodSemanticsAttributes = 0x0010 // msRemoveOn: remove_
+	MethodSemanticsFire     MethodSemanticsAttributes = 0x0020 // msFire
+)
+
+// String renders the set attributes in specification vocabulary.
+func (a MethodSemanticsAttributes) String() string {
+	parts := appendFlagNames(nil, uint32(a), []flagName{
+		{uint32(MethodSemanticsSetter), "Setter"},
+		{uint32(MethodSemanticsGetter), "Getter"},
+		{uint32(MethodSemanticsOther), "Other"},
+		{uint32(MethodSemanticsAddOn), "AddOn"},
+		{uint32(MethodSemanticsRemoveOn), "RemoveOn"},
+		{uint32(MethodSemanticsFire), "Fire"},
+	})
+	return joinFlags(parts, uint32(a))
+}
+
 // flagName pairs a single-bit flag with its specification name.
 type flagName struct {
 	bit  uint32

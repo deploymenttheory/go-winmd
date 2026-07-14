@@ -30,9 +30,11 @@
 //     winmd (the brute-force test suites prove it); such constructs fail
 //     with a structured error rather than silently mis-decoding.
 //
-// Generics (GENERICINST/VAR/MVAR signatures and the GenericParam tables) ARE
-// decoded, for WinRT-style metadata; the Win32/WDK winmds contain none (a
-// tripwire test asserts this), so that support is inert for those projections.
+// Generics (GENERICINST/VAR/MVAR signatures and the GenericParam tables) and
+// the event/property tables (Event/EventMap, Property/PropertyMap,
+// MethodSemantics, plus PropertySignature) ARE decoded, for WinRT-style
+// metadata; the Win32/WDK winmds contain none of either (tripwire tests
+// assert this), so that support is inert for those projections.
 package winmd
 
 import (

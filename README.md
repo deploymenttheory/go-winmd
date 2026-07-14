@@ -10,7 +10,7 @@ no dependencies.
 
 This is the shared foundation of the deploymenttheory Windows bindings
 family: [go-bindings-win32](https://github.com/deploymenttheory/go-bindings-win32),
-go-bindings-wdk, and (planned) go-bindings-winrt all generate from metadata
+go-bindings-wdk, and go-bindings-winrt all generate from metadata
 parsed by this module.
 
 ## What it does
@@ -63,9 +63,10 @@ commands and by this module's own test fixture.
 
 Deliberately scoped to what the Windows metadata projections need (recorded
 in the package documentation): no lazy per-row table access, no generic
-coded-index tag types, no `#US` heap, no generics signature decoding (yet —
-it lands here when go-bindings-winrt needs it; the Win32/WDK metadata
-contains none).
+coded-index tag types, no `#US` heap, no BYREF/multi-rank-array signature
+decoding. Generics and the WinRT event/property tables ARE decoded (for
+go-bindings-winrt); tripwire tests prove the Win32/WDK metadata contains
+neither, so those projections are unaffected.
 
 ## Documentation
 
