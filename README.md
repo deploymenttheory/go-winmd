@@ -75,6 +75,16 @@ contains none).
   the non-goals, comparison vs microsoft/go-winmd
 - [`CLAUDE.md`](CLAUDE.md) — the as-built architecture
 
+## Related projects
+
+Part of the deploymenttheory Windows bindings family:
+
+- **go-winmd** — the shared ECMA-335 `.winmd` metadata reader *(this repo)*
+- [go-bindings-win32](https://github.com/deploymenttheory/go-bindings-win32) — the Win32 API surface — functions, structs, enums, COM
+- [go-bindings-wdk](https://github.com/deploymenttheory/go-bindings-wdk) — the Windows Driver Kit / user-mode Native API surface
+- [go-bindings-wmi](https://github.com/deploymenttheory/go-bindings-wmi) — typed WMI/CIM classes
+- [go-bindings-winrt](https://github.com/deploymenttheory/go-bindings-winrt) — WinRT bindings (in progress)
+
 ## License
 
 [MIT](LICENSE).
