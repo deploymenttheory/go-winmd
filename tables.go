@@ -350,6 +350,45 @@ type GenericParamConstraintRow struct {
 	Constraint CodedIndex // TypeDefOrRef the parameter must satisfy
 }
 
+// EventMapRow is an EventMap table row (§II.22.12). Present in WinRT
+// metadata; absent from the Win32/WDK winmds (as are the other four
+// event/property tables below).
+type EventMapRow struct {
+	Parent uint32 // TypeDef row
+	// EventFirst/EventEnd is a 1-based half-open row range into Events.
+	EventFirst, EventEnd uint32
+}
+
+// EventRow is an Event table row (§II.22.13).
+type EventRow struct {
+	EventFlags EventAttributes
+	Name       string
+	EventType  CodedIndex // TypeDefOrRef: the delegate type
+}
+
+// PropertyMapRow is a PropertyMap table row (§II.22.35).
+type PropertyMapRow struct {
+	Parent uint32 // TypeDef row
+	// PropertyFirst/PropertyEnd is a 1-based half-open row range into
+	// Properties.
+	PropertyFirst, PropertyEnd uint32
+}
+
+// PropertyRow is a Property table row (§II.22.34).
+type PropertyRow struct {
+	Flags PropertyAttributes
+	Name  string
+	Type  uint32 // #Blob offset of the PropertySig (§II.23.2.5)
+}
+
+// MethodSemanticsRow is a MethodSemantics table row (§II.22.28): it binds a
+// get_/put_/add_/remove_ method to its owning property or event.
+type MethodSemanticsRow struct {
+	Semantics   MethodSemanticsAttributes
+	Method      uint32     // MethodDef row
+	Association CodedIndex // HasSemantics: the Event or Property
+}
+
 // Tables holds the decoded metadata tables.
 type Tables struct {
 	rowCounts [tableCount]uint32
@@ -365,6 +404,11 @@ type Tables struct {
 	CustomAttributes        []CustomAttributeRow
 	ClassLayouts            []ClassLayoutRow
 	FieldLayouts            []FieldLayoutRow
+	EventMaps               []EventMapRow
+	Events                  []EventRow
+	PropertyMaps            []PropertyMapRow
+	Properties              []PropertyRow
+	MethodSemantics         []MethodSemanticsRow
 	ModuleRefs              []string
 	TypeSpecs               []uint32 // #Blob offsets
 	ImplMaps                []ImplMapRow
@@ -506,6 +550,38 @@ func (t *Tables) parse(stream []byte, strings StringHeap, blobs BlobHeap, guids 
 			t.FieldLayouts = decodeRows(decoder, tableID, count, func(r *rowReader) FieldLayoutRow {
 				return FieldLayoutRow{Offset: r.uint32(), Field: r.index(TableField)}
 			})
+		case TableEventMap:
+			t.EventMaps = decodeRows(decoder, tableID, count, func(r *rowReader) EventMapRow {
+				return EventMapRow{Parent: r.index(TableTypeDef), EventFirst: r.index(TableEvent)}
+			})
+		case TableEvent:
+			t.Events = decodeRows(decoder, tableID, count, func(r *rowReader) EventRow {
+				return EventRow{
+					EventFlags: EventAttributes(r.uint16()),
+					Name:       r.string(),
+					EventType:  r.coded(codedTypeDefOrRef),
+				}
+			})
+		case TablePropertyMap:
+			t.PropertyMaps = decodeRows(decoder, tableID, count, func(r *rowReader) PropertyMapRow {
+				return PropertyMapRow{Parent: r.index(TableTypeDef), PropertyFirst: r.index(TableProperty)}
+			})
+		case TableProperty:
+			t.Properties = decodeRows(decoder, tableID, count, func(r *rowReader) PropertyRow {
+				return PropertyRow{
+					Flags: PropertyAttributes(r.uint16()),
+					Name:  r.string(),
+					Type:  r.blob(),
+				}
+			})
+		case TableMethodSemantics:
+			t.MethodSemantics = decodeRows(decoder, tableID, count, func(r *rowReader) MethodSemanticsRow {
+				return MethodSemanticsRow{
+					Semantics:   MethodSemanticsAttributes(r.uint16()),
+					Method:      r.index(TableMethodDef),
+					Association: r.coded(codedHasSemantics),
+				}
+			})
 		case TableModuleRef:
 			t.ModuleRefs = decodeRows(decoder, tableID, count, func(r *rowReader) string {
 				return r.string()
@@ -560,6 +636,12 @@ func (t *Tables) parse(stream []byte, strings StringHeap, blobs BlobHeap, guids 
 	})
 	fixListRanges(t.Methods, uint32(len(t.Params)), func(row *MethodDefRow) (*uint32, *uint32) {
 		return &row.ParamFirst, &row.ParamEnd
+	})
+	fixListRanges(t.EventMaps, uint32(len(t.Events)), func(row *EventMapRow) (*uint32, *uint32) {
+		return &row.EventFirst, &row.EventEnd
+	})
+	fixListRanges(t.PropertyMaps, uint32(len(t.Properties)), func(row *PropertyMapRow) (*uint32, *uint32) {
+		return &row.PropertyFirst, &row.PropertyEnd
 	})
 	return nil
 }

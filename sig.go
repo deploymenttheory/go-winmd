@@ -120,16 +120,41 @@ func (f *File) MethodSignature(blobOffset uint32) (MethodSig, error) {
 		return MethodSig{}, fmt.Errorf("method signature blob 0x%x out of range", blobOffset)
 	}
 	reader := blobReader{data: blob}
+	return f.decodeMethodLikeSig(&reader, reader.byte())
+}
+
+// PropertySignature decodes the PropertySig blob (§II.23.2.5) at the given
+// #Blob offset. The shape mirrors MethodDefSig — PROPERTY (0x08, optionally
+// combined with HASTHIS 0x20), ParamCount, the property type, then the
+// indexer parameters — so the property type lands in MethodSig.Return.
+func (f *File) PropertySignature(blobOffset uint32) (MethodSig, error) {
+	blob := f.Blobs.Get(blobOffset)
+	if blob == nil {
+		return MethodSig{}, fmt.Errorf("property signature blob 0x%x out of range", blobOffset)
+	}
+	reader := blobReader{data: blob}
+	const propertySigMarker = 0x08
+	marker := reader.byte()
+	// Mask, not compare: instance properties carry PROPERTY|HASTHIS (0x28).
+	if marker&0x0F != propertySigMarker {
+		return MethodSig{}, fmt.Errorf("property signature starts with 0x%02x, want PROPERTY (0x08)", marker)
+	}
+	return f.decodeMethodLikeSig(&reader, marker)
+}
+
+// decodeMethodLikeSig decodes the tail shared by MethodDefSig and
+// PropertySig after the leading calling-convention/marker byte: ParamCount,
+// the return (or property) type, then the parameters.
+func (f *File) decodeMethodLikeSig(reader *blobReader, callConv byte) (MethodSig, error) {
 	const sigHasThis = 0x20
-	callConv := reader.byte()
 	paramCount := reader.compressedUint()
 	sig := MethodSig{HasThis: callConv&sigHasThis != 0}
-	sig.Return = f.decodeTypeSig(&reader)
+	sig.Return = f.decodeTypeSig(reader)
 	// Capacity clamped to the bytes left: each param is ≥1 byte, so a corrupt
 	// count (up to 2²⁹−1) cannot force an outsized allocation.
 	sig.Params = make([]TypeSig, 0, min(int(paramCount), reader.remaining()))
 	for i := uint32(0); i < paramCount && !reader.failed(); i++ {
-		sig.Params = append(sig.Params, f.decodeTypeSig(&reader))
+		sig.Params = append(sig.Params, f.decodeTypeSig(reader))
 	}
 	if reader.err != nil {
 		return MethodSig{}, reader.err
