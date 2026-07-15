@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/deploymenttheory/go-winmd/compare/v0.2.1...v0.3.0) (2026-07-15)
+
+
+### Features
+
+* materialize Event/Property/MethodSemantics tables and PropertySig decoding for WinRT ([e14a9e3](https://github.com/deploymenttheory/go-winmd/commit/e14a9e3514dd037e285df6232ff63f0b3d2d1ade))
+* materialize Event/Property/MethodSemantics tables and PropertySig decoding for WinRT ([3f5b9f4](https://github.com/deploymenttheory/go-winmd/commit/3f5b9f4a849f1dbe83838dcaee03c3399f3122fc))
+
 ## [0.2.1](https://github.com/deploymenttheory/go-winmd/compare/v0.2.0...v0.2.1) (2026-07-14)
 
 
