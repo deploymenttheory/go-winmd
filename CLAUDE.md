@@ -56,6 +56,15 @@ PE container → CLI metadata root → heaps → tables → signatures / attribu
   in the doc comments) and `DecodeConstant` for Constant-table blobs.
 - **`nuget/`** — stdlib-only NuGet flat-container fetch + provenance records;
   used by the bindings generators' `fetch-metadata` and this module's fixture.
+  `nuget.go` is the single-file path (`Fetch`/`ExtractFile`), one download per
+  file. `multifile.go` serves meta-packages, where that model breaks down:
+  `Dependencies`/`ParseDependencies` read a nuspec's fan-out (the Windows App
+  SDK is nine component packages whose set and versions move every servicing
+  release, so it must be discovered, not hard-coded), and
+  `FetchArchive` + `ExtractMatching`/`EntryNames` + `ProvenanceFor` split the
+  download from the extraction so one archive yields many files and many
+  provenance records. Entry keys are full archive paths, never base names —
+  a nupkg routinely ships the same file under several architectures.
 
 ## Spec alignment
 
