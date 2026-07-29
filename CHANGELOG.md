@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/deploymenttheory/go-winmd/compare/v0.3.0...v0.4.0) (2026-07-29)
+
+
+### Features
+
+* **nuget:** resolve meta-package fan-out and multi-file extraction ([d99825f](https://github.com/deploymenttheory/go-winmd/commit/d99825f0080c125a407cdea5e7e24b38f5998ebb))
+* **nuget:** resolve meta-package fan-out and multi-file extraction ([f5ebf14](https://github.com/deploymenttheory/go-winmd/commit/f5ebf14c50ec2367a9b57a5976e7d72f28e4b643))
+
 ## [0.3.0](https://github.com/deploymenttheory/go-winmd/compare/v0.2.1...v0.3.0) (2026-07-15)
 
 
