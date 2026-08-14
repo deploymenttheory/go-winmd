@@ -8,8 +8,8 @@
 ![Status: GA](https://img.shields.io/badge/status-GA-green)
 
 A native Go reader for ECMA-335 metadata files (`.winmd`), aligned with the
-**ECMA-335 6th edition** standard. Standard library only — no .NET, no cgo,
-no dependencies.
+**ECMA-335 6th edition** standard. It uses the standard library and nothing
+else: no .NET, no cgo, no third-party dependencies.
 
 This is the shared foundation of the deploymenttheory Windows bindings
 family: [go-bindings-win32](https://github.com/deploymenttheory/go-bindings-win32),
@@ -21,33 +21,49 @@ them.
 
 ## What it does
 
-- **PE container → CLI metadata root → heaps → tables**: parses `#~` and
-  `#-` table streams, `#Strings`/`#Blob`/`#GUID` heaps, with every exported
-  symbol carrying its §II.x specification reference.
-- **All 45 ECMA-335 tables** sized and skipped correctly; the 22 tables the
-  Windows metadata projections need are materialized into typed rows, with
-  typed `Table` IDs and typed bitmask columns (`TypeAttributes`,
-  `ParamAttributes`, `PInvokeAttributes`, …) in specification vocabulary.
-- **Signature blobs** (`MethodDefSig`, `FieldSig`, `PropertySig`, §II.23.2)
-  decoded into a recursive `TypeSig` grammar, generics included.
-- **Custom-attribute values decoded** (§II.23.3) — fixed and named arguments,
-  not just raw blobs — plus `Constant`-table value decoding. These are the
-  pieces most winmd readers omit.
-- **Hardened against hostile input**: untrusted lengths and row indices are
-  bounds-checked and allocation-clamped; corrupt files return errors, never
-  panic or over-allocate.
+It reads a `.winmd` file in the order the specification lays one out. First
+the PE container, then the CLI metadata root, then the heaps, then the
+tables. Both table stream formats are handled, `#~` and `#-`, along with the
+`#Strings`, `#Blob` and `#GUID` heaps. Every exported symbol names the §II.x
+section it comes from, so you can read the code next to the standard and
+check one against the other.
 
-Tested by brute force against two real winmds: every one of the ~318k
-signatures and ~152k custom attributes in `Windows.Win32.winmd`, and the
-~73k signatures, ~31k property signatures and ~56k attributes in the WinRT
-`Windows.Foundation.UniversalApiContract.winmd`, must decode with zero
-failures. `testdata/PROVENANCE.json` pins both fixtures by version and
-sha256; they are fetched on demand and verified, and offline runs skip.
+All 45 ECMA-335 tables are sized correctly, which is what lets the reader
+step over the ones it has no use for. The 22 tables the Windows metadata
+projections actually need are decoded into typed rows. Table IDs are typed,
+and so are the bitmask columns such as `TypeAttributes`, `ParamAttributes`
+and `PInvokeAttributes`, each one named the way the specification names it.
+
+Signature blobs decode into a recursive `TypeSig` grammar, generics
+included. That covers `MethodDefSig`, `FieldSig` and `PropertySig` (§II.23.2).
+
+Custom-attribute values are decoded rather than handed back as raw bytes
+(§II.23.3), both the fixed arguments and the named ones, and `Constant`
+table values are decoded too. Most winmd readers stop at the blob and leave
+this part to you.
+
+Hostile input is assumed throughout. Untrusted lengths and row indices are
+bounds-checked and clamped before anything is allocated, so a corrupt file
+comes back as an error rather than a panic or a request for several
+gigabytes of memory.
+
+## How it is tested
+
+Two real winmd files are decoded end to end on every run, and everything in
+them has to decode without a single failure. For `Windows.Win32.winmd` that
+is roughly 318k signatures and 152k custom attributes. For the WinRT
+`Windows.Foundation.UniversalApiContract.winmd` it is roughly 73k
+signatures, 31k property signatures and 56k custom attributes.
+
+`testdata/PROVENANCE.json` pins both files by version and sha256. Each one
+is downloaded the first time a test needs it and checked against its pin, so
+the suite always runs against known bytes. If there is no network, the tests
+that need a fixture skip instead of failing.
 
 ## Layout
 
 ```text
-pkg/winmd/           the reader — PE → CLI header → heaps → tables → signatures
+pkg/winmd/           the reader: PE, CLI header, heaps, tables, signatures
 pkg/nuget/           stdlib-only NuGet flat-container fetch + provenance records
 cmd/winmd-update/    refreshes the pinned metadata in testdata/PROVENANCE.json
 testdata/            PROVENANCE.json pins; the .winmd files are fetched on demand
@@ -73,8 +89,8 @@ attrs := file.AttributesFor(winmd.CodedIndex{Table: winmd.TableTypeDef, Row: 1})
 ```
 
 The `pkg/nuget` subpackage downloads winmd files from NuGet (flat-container
-API) with provenance records — used by the bindings generators'
-`fetch-metadata` commands and by this module's own test fixture.
+API) with provenance records. The bindings generators use it for their
+`fetch-metadata` commands, and this module uses it for its own test fixtures.
 
 ## Keeping the metadata current
 
@@ -93,8 +109,9 @@ is never walked backwards.
 
 The [Metadata Update](.github/workflows/metadata-update.yml) workflow runs
 this weekly (and on manual dispatch). When a pin moves it runs the full
-decode suite against the *new* metadata and opens a PR — as a draft, with the
-failing test output in the body, if the new metadata does not decode cleanly.
+decode suite against the *new* metadata and opens a PR. If the new metadata
+does not decode cleanly the PR is opened as a draft, with the failing test
+output in the body.
 
 ## Non-goals
 
@@ -107,21 +124,21 @@ neither, so those projections are unaffected.
 
 ## Documentation
 
-- [Getting started](docs/getting-started.md) — open a file, iterate tables,
+- [Getting started](docs/getting-started.md): open a file, iterate tables,
   decode signatures and attributes
-- [ECMA-335 notes](docs/ecma335-notes.md) — materialized vs sized-only tables,
-  the non-goals, comparison vs microsoft/go-winmd
-- [`CLAUDE.md`](CLAUDE.md) — the as-built architecture
+- [ECMA-335 notes](docs/ecma335-notes.md): materialized versus sized-only
+  tables, the non-goals, and a comparison with microsoft/go-winmd
+- [`CLAUDE.md`](CLAUDE.md): the as-built architecture
 
 ## Related projects
 
 Part of the deploymenttheory Windows bindings family:
 
-- **go-winmd** — the shared ECMA-335 `.winmd` metadata reader *(this repo)*
-- [go-bindings-win32](https://github.com/deploymenttheory/go-bindings-win32) — the Win32 API surface — functions, structs, enums, COM
-- [go-bindings-wdk](https://github.com/deploymenttheory/go-bindings-wdk) — the Windows Driver Kit / user-mode Native API surface
-- [go-bindings-wmi](https://github.com/deploymenttheory/go-bindings-wmi) — typed WMI/CIM classes
-- [go-bindings-winrt](https://github.com/deploymenttheory/go-bindings-winrt) — WinRT bindings (in progress)
+- **go-winmd**: the shared ECMA-335 `.winmd` metadata reader *(this repo)*
+- [go-bindings-win32](https://github.com/deploymenttheory/go-bindings-win32): the Win32 API surface, covering functions, structs, enums and COM
+- [go-bindings-wdk](https://github.com/deploymenttheory/go-bindings-wdk): the Windows Driver Kit and user-mode Native API surface
+- [go-bindings-wmi](https://github.com/deploymenttheory/go-bindings-wmi): typed WMI and CIM classes
+- [go-bindings-winrt](https://github.com/deploymenttheory/go-bindings-winrt): WinRT bindings, in progress
 
 ## License
 
