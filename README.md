@@ -1,7 +1,8 @@
 # go-winmd
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/deploymenttheory/go-winmd.svg)](https://pkg.go.dev/github.com/deploymenttheory/go-winmd)
+[![Go Reference](https://pkg.go.dev/badge/github.com/deploymenttheory/go-winmd/pkg/winmd.svg)](https://pkg.go.dev/github.com/deploymenttheory/go-winmd/pkg/winmd)
 [![CI](https://github.com/deploymenttheory/go-winmd/actions/workflows/ci.yml/badge.svg)](https://github.com/deploymenttheory/go-winmd/actions/workflows/ci.yml)
+[![Metadata Update](https://github.com/deploymenttheory/go-winmd/actions/workflows/metadata-update.yml/badge.svg)](https://github.com/deploymenttheory/go-winmd/actions/workflows/metadata-update.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A native Go reader for ECMA-335 metadata files (`.winmd`), aligned with the
@@ -10,20 +11,23 @@ no dependencies.
 
 This is the shared foundation of the deploymenttheory Windows bindings
 family: [go-bindings-win32](https://github.com/deploymenttheory/go-bindings-win32),
-go-bindings-wdk, and go-bindings-winrt all generate from metadata
-parsed by this module.
+[go-bindings-wdk](https://github.com/deploymenttheory/go-bindings-wdk),
+[go-bindings-wmi](https://github.com/deploymenttheory/go-bindings-wmi) and
+[go-bindings-winrt](https://github.com/deploymenttheory/go-bindings-winrt)
+all generate from metadata parsed by this module. Changing it changes all of
+them.
 
 ## What it does
 
 - **PE container → CLI metadata root → heaps → tables**: parses `#~` and
   `#-` table streams, `#Strings`/`#Blob`/`#GUID` heaps, with every exported
   symbol carrying its §II.x specification reference.
-- **All 45 ECMA-335 tables** sized and skipped correctly; the 15 tables the
+- **All 45 ECMA-335 tables** sized and skipped correctly; the 22 tables the
   Windows metadata projections need are materialized into typed rows, with
   typed `Table` IDs and typed bitmask columns (`TypeAttributes`,
   `ParamAttributes`, `PInvokeAttributes`, …) in specification vocabulary.
-- **Signature blobs** (`MethodDefSig`, `FieldSig`, §II.23.2) decoded into a
-  recursive `TypeSig` grammar.
+- **Signature blobs** (`MethodDefSig`, `FieldSig`, `PropertySig`, §II.23.2)
+  decoded into a recursive `TypeSig` grammar, generics included.
 - **Custom-attribute values decoded** (§II.23.3) — fixed and named arguments,
   not just raw blobs — plus `Constant`-table value decoding. These are the
   pieces most winmd readers omit.
@@ -31,10 +35,12 @@ parsed by this module.
   bounds-checked and allocation-clamped; corrupt files return errors, never
   panic or over-allocate.
 
-Tested by brute force: every one of the ~318k signatures and ~152k custom
-attributes in the pinned `Windows.Win32.winmd` must decode with zero
-failures (`testdata/PROVENANCE.json` pins the fixture; it is fetched on
-demand and sha256-verified).
+Tested by brute force against two real winmds: every one of the ~318k
+signatures and ~152k custom attributes in `Windows.Win32.winmd`, and the
+~73k signatures, ~31k property signatures and ~56k attributes in the WinRT
+`Windows.Foundation.UniversalApiContract.winmd`, must decode with zero
+failures. `testdata/PROVENANCE.json` pins both fixtures by version and
+sha256; they are fetched on demand and verified, and offline runs skip.
 
 ## Layout
 
