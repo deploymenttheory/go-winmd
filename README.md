@@ -11,6 +11,39 @@ A native Go reader for ECMA-335 metadata files (`.winmd`), aligned with the
 **ECMA-335 6th edition** standard. It uses the standard library and nothing
 else: no .NET, no cgo, no third-party dependencies.
 
+## Why this exists
+
+Microsoft publishes the Windows API surface as machine-readable metadata.
+Every Win32 function, struct, enum, COM interface and constant is described
+in a `.winmd` file that ships on NuGet and is versioned alongside the SDK.
+That file records the things a C header leaves implicit: which DLL a
+function is imported from, the GUID sitting on a COM interface, which
+pointers are optional, which typedefs are genuinely distinct handle types
+and which are just aliases. Generating Go bindings from metadata is what
+keeps them correct as the SDK moves, instead of drifting the way
+hand-written bindings always do.
+
+The catch is that `.winmd` is a .NET file format. It is a PE image carrying
+CLR metadata, meant to be read by .NET tooling, so reading one normally
+means a .NET runtime or `System.Reflection.Metadata` somewhere in your
+build. Putting a .NET install into the build pipeline of a Go project is a
+poor trade, and reaching for a C library through cgo only swaps one build
+dependency for another while making cross-compilation harder.
+
+So this module reads the format directly. It walks the PE container, finds
+the CLI header, and decodes the heaps, tables, signatures and custom
+attributes itself, in Go, using the standard library alone. `go build` is
+the entire toolchain.
+
+Custom attributes are the part that matters most, and the part most readers
+skip. The Windows-specific information is not in the tables, it is in
+attribute values hung off them, so a reader that hands those back as raw
+blobs has left the real work to whoever called it. This one decodes them,
+and `Constant` table values with them. That is also why it does not build on
+`microsoft/go-winmd`, which has no tagged releases, pulls in
+`golang.org/x/tools`, and decodes neither attribute values, nor `Constant`
+values, nor the `#-` stream variant that the Windows projections need.
+
 This is the shared foundation of the deploymenttheory Windows bindings
 family: [go-bindings-win32](https://github.com/deploymenttheory/go-bindings-win32),
 [go-bindings-wdk](https://github.com/deploymenttheory/go-bindings-wdk),
