@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.0.0](https://github.com/deploymenttheory/go-winmd/compare/v0.4.0...v1.0.0) (2026-08-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* the import path is now github.com/deploymenttheory/go-winmd/pkg/winmd (and .../pkg/nuget). go-bindings-win32, go-bindings-wdk, go-bindings-wmi and go-bindings-winrt must update their imports.
+
+### Features
+
+* move the reader into pkg/ and add a weekly metadata update pipeline ([e6120e5](https://github.com/deploymenttheory/go-winmd/commit/e6120e5379802881a6f0dd313a7e00464d2f0da4))
+* move the reader into pkg/ and add a weekly metadata update pipeline ([8edde77](https://github.com/deploymenttheory/go-winmd/commit/8edde773303d60c96a420acf515078e9ad0a2b5a))
+
 ## [0.4.0](https://github.com/deploymenttheory/go-winmd/compare/v0.3.0...v0.4.0) (2026-07-29)
 
 
