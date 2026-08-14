@@ -1,9 +1,11 @@
 # go-winmd
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/deploymenttheory/go-winmd/pkg/winmd.svg)](https://pkg.go.dev/github.com/deploymenttheory/go-winmd/pkg/winmd)
-[![CI](https://github.com/deploymenttheory/go-winmd/actions/workflows/ci.yml/badge.svg)](https://github.com/deploymenttheory/go-winmd/actions/workflows/ci.yml)
-[![Metadata Update](https://github.com/deploymenttheory/go-winmd/actions/workflows/metadata-update.yml/badge.svg)](https://github.com/deploymenttheory/go-winmd/actions/workflows/metadata-update.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![GoDoc](https://pkg.go.dev/badge/github.com/deploymenttheory/go-winmd)](https://pkg.go.dev/github.com/deploymenttheory/go-winmd)
+[![License](https://img.shields.io/github/license/deploymenttheory/go-winmd)](LICENSE)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/deploymenttheory/go-winmd)](https://go.dev/)
+[![Release](https://img.shields.io/github/v/release/deploymenttheory/go-winmd)](https://github.com/deploymenttheory/go-winmd/releases)
+[![codecov](https://codecov.io/gh/deploymenttheory/go-winmd/graph/badge.svg)](https://codecov.io/gh/deploymenttheory/go-winmd)
+![Status: GA](https://img.shields.io/badge/status-GA-green)
 
 A native Go reader for ECMA-335 metadata files (`.winmd`), aligned with the
 **ECMA-335 6th edition** standard. Standard library only — no .NET, no cgo,
