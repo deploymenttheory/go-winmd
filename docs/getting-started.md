@@ -52,9 +52,9 @@ if err != nil {
 fmt.Println("returns", sig.Return.Kind, "with", len(sig.Params), "params")
 ```
 
-`sig.Return` / `sig.Params[i]` are `TypeSig` values — a recursive grammar
-(`SigPrimitive`, `SigNamed`, `SigPointer`, `SigArray`, `SigSZArray`,
-`SigFuncPtr`).
+`sig.Return` and `sig.Params[i]` are `TypeSig` values, a recursive grammar
+made of `SigPrimitive`, `SigNamed`, `SigPointer`, `SigArray`, `SigSZArray`
+and `SigFuncPtr`.
 
 ## Read custom-attribute values
 
