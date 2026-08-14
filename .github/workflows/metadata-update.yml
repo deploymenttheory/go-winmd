@@ -1,0 +1,178 @@
+name: Metadata Update
+
+# Tracks the upstream .winmd metadata packages on nuget.org and proposes the
+# bump as a PR. The full brute-force decode suite runs against the *new*
+# metadata before the PR is opened, so a projection change that this reader
+# cannot decode shows up as a red, draft PR rather than as a surprise in the
+# downstream bindings generators.
+
+on:
+  schedule:
+    # Mondays, 06:17 UTC. Offset from the hour so it is not queued behind the
+    # rest of GitHub's on-the-hour cron load.
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'Restrict to one package (display name as recorded in PROVENANCE.json). Blank = all.'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Report available updates without opening a PR'
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: metadata-update
+  cancel-in-progress: false
+
+env:
+  BRANCH: chore/winmd-metadata-update
+
+jobs:
+  update:
+    name: '📦 Check pinned winmd metadata'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write        # push the update branch
+      pull-requests: write   # open/update the PR
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - name: Check Out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      # Resolves the newest published version of each pinned package, fetches
+      # it into testdata/ and rewrites testdata/PROVENANCE.json. Emits
+      # `updated`, `title` and `summary` outputs. Exit 0 when nothing moved.
+      - name: Resolve latest metadata
+        id: resolve
+        run: |
+          set -o pipefail
+          args=()
+          if [ -n "$PACKAGE" ]; then args+=(-package "$PACKAGE"); fi
+          if [ -n "$DRY_RUN" ]; then args+=(-check); fi
+          go run ./cmd/winmd-update "${args[@]}" | tee resolve.log
+        env:
+          PACKAGE: ${{ inputs.package }}
+          DRY_RUN: ${{ inputs.dry_run == true && '1' || '' }}
+
+      # The new metadata is already in testdata/ and PROVENANCE.json now pins
+      # it, so this decodes every signature and custom attribute in the new
+      # files. Allowed to fail: a failure is the signal the PR must carry.
+      - name: Decode suite against the new metadata
+        id: decode
+        if: steps.resolve.outputs.updated == 'true' && inputs.dry_run != true
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          go build ./... && go vet ./... && go test ./... 2>&1 | tee decode.log
+
+      - name: Assemble PR body
+        id: body
+        if: steps.resolve.outputs.updated == 'true' && inputs.dry_run != true
+        env:
+          PINS: ${{ steps.resolve.outputs.summary }}
+        run: |
+          {
+            echo 'body<<PR_BODY_EOF'
+            echo 'Upstream metadata moved on nuget.org. This bumps the pins in `testdata/PROVENANCE.json`.'
+            echo
+            echo '### Pins'
+            echo "$PINS"
+            echo
+            if [ "${{ steps.decode.outcome }}" = 'success' ]; then
+              echo '### Decode suite: ✅ passing'
+              echo
+              echo 'Every signature and custom attribute in both fixtures decoded against the new metadata with zero failures.'
+            else
+              echo '### Decode suite: ❌ FAILING'
+              echo
+              echo 'The new metadata does not decode cleanly. **Opened as a draft — do not merge until this is resolved.**'
+              echo 'This usually means the upstream projection started using a construct this reader does not yet handle.'
+              echo
+              echo '<details><summary>Test output (last 200 lines)</summary>'
+              echo
+              echo '```'
+              tail -n 200 decode.log 2>/dev/null || echo '(no test output captured)'
+              echo '```'
+              echo
+              echo '</details>'
+            fi
+            echo
+            echo "_Opened by [Metadata Update](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})._"
+            echo 'PR_BODY_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push
+        id: push
+        if: steps.resolve.outputs.updated == 'true' && inputs.dry_run != true
+        env:
+          TITLE: ${{ steps.resolve.outputs.title }}
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -B "$BRANCH"
+          git add testdata/PROVENANCE.json
+          if git diff --cached --quiet; then
+            echo 'PROVENANCE.json is unchanged after all; nothing to push.'
+            echo 'pushed=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "$TITLE" -m 'Regenerated by .github/workflows/metadata-update.yml.'
+          git push --force origin "$BRANCH"
+          echo 'pushed=true' >> "$GITHUB_OUTPUT"
+
+      # A PAT is used when available so the PR triggers the CI workflows;
+      # PRs opened with GITHUB_TOKEN do not fire further workflow runs.
+      - name: Open or update the PR
+        if: steps.push.outputs.pushed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLEASE_PAT || secrets.GITHUB_TOKEN }}
+          TITLE: ${{ steps.resolve.outputs.title }}
+          BODY: ${{ steps.body.outputs.body }}
+          DRAFT: ${{ steps.decode.outcome != 'success' && '--draft' || '' }}
+        run: |
+          existing=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --title "$TITLE" --body "$BODY"
+            # A reopened run may flip the verdict either way, so the draft
+            # state is re-asserted rather than left at what the last run set.
+            if [ -n "$DRAFT" ]; then
+              gh pr ready "$existing" --undo
+            else
+              gh pr ready "$existing"
+            fi
+            echo "Updated PR #$existing"
+          else
+            gh pr create --base "${{ github.event.repository.default_branch }}" --head "$BRANCH" \
+              --title "$TITLE" --body "$BODY" $DRAFT
+          fi
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo '## Pinned winmd metadata'
+            echo
+            if [ -f resolve.log ]; then sed 's/^/    /' resolve.log; fi
+            echo
+            if [ "${{ steps.decode.outcome }}" = 'failure' ]; then
+              echo '⚠️ The new metadata failed the decode suite — the PR was opened as a draft.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

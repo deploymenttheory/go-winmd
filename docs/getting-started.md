@@ -6,6 +6,10 @@
 go get github.com/deploymenttheory/go-winmd
 ```
 
+```go
+import "github.com/deploymenttheory/go-winmd/pkg/winmd"
+```
+
 ## Open a file
 
 ```go

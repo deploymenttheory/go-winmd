@@ -20,11 +20,12 @@
 *.winfile eol=crlf
 
 # Go development
+# NB: no /pkg/ rule — that GOPATH-era build-output path is this module's
+# source tree (pkg/winmd, pkg/nuget).
 *.test
 /vendor/
 /bin/
 /dist/
-/pkg/
 coverage.out
 coverage.html
 
@@ -50,3 +51,6 @@ __pycache__/
 *.so
 # Test fixture (fetched on demand, pinned by testdata/PROVENANCE.json)
 testdata/*.winmd
+
+# golangci-lint SARIF output (see .golangci.yml output settings)
+golangci-lint-report.sarif

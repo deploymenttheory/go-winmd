@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/deploymenttheory/go-winmd"
+	"github.com/deploymenttheory/go-winmd/pkg/winmd"
 )
 
 // Example opens a .winmd file, counts its COM interfaces, and decodes the

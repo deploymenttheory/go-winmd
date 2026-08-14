@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -31,25 +32,61 @@ func NewClient() *http.Client {
 	return &http.Client{Timeout: 5 * time.Minute}
 }
 
-// LatestVersion resolves the newest published version of the package
-// (NuGet flat-container index; lowercase package ID).
-func LatestVersion(client *http.Client, pkg string) (string, error) {
+// Versions lists every published version of the package, oldest → newest
+// (NuGet flat-container index; lowercase package ID). The flat-container
+// index is defined to be SemVer-ordered ascending, so the last entry is the
+// newest — including prereleases.
+func Versions(client *http.Client, pkg string) ([]string, error) {
 	indexURL := fmt.Sprintf("https://api.nuget.org/v3-flatcontainer/%s/index.json", pkg)
 	data, err := httpGet(client, indexURL)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	var index struct {
 		Versions []string `json:"versions"`
 	}
 	if err := json.Unmarshal(data, &index); err != nil {
-		return "", fmt.Errorf("parsing NuGet version index: %w", err)
+		return nil, fmt.Errorf("parsing NuGet version index: %w", err)
 	}
 	if len(index.Versions) == 0 {
-		return "", fmt.Errorf("NuGet index lists no versions for %s", pkg)
+		return nil, fmt.Errorf("NuGet index lists no versions for %s", pkg)
 	}
-	// The flat-container index is ordered oldest → newest.
-	return index.Versions[len(index.Versions)-1], nil
+	return index.Versions, nil
+}
+
+// LatestVersion resolves the newest published version of the package
+// (NuGet flat-container index; lowercase package ID).
+func LatestVersion(client *http.Client, pkg string) (string, error) {
+	versions, err := Versions(client, pkg)
+	if err != nil {
+		return "", err
+	}
+	return versions[len(versions)-1], nil
+}
+
+// LatestStableVersion resolves the newest published non-prerelease version.
+// It errors when the package has only ever shipped prereleases.
+func LatestStableVersion(client *http.Client, pkg string) (string, error) {
+	versions, err := Versions(client, pkg)
+	if err != nil {
+		return "", err
+	}
+	for i := len(versions) - 1; i >= 0; i-- {
+		if !IsPrerelease(versions[i]) {
+			return versions[i], nil
+		}
+	}
+	return "", fmt.Errorf("NuGet index lists no stable versions for %s", pkg)
+}
+
+// IsPrerelease reports whether a NuGet version carries a SemVer prerelease
+// label (the "-preview" in "71.0.14-preview"). Build metadata after "+" is
+// not a prerelease marker.
+func IsPrerelease(version string) bool {
+	if plus := strings.IndexByte(version, '+'); plus >= 0 {
+		version = version[:plus]
+	}
+	return strings.ContainsRune(version, '-')
 }
 
 // SourceURL is the flat-container nupkg URL for a package version.
