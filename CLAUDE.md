@@ -17,44 +17,56 @@ by this module. Changing it changes all of them.
 go build ./...
 go vet ./...
 go test ./...     # fetches the pinned winmd fixtures on first run
+
+go run ./cmd/winmd-update -check   # report upstream metadata drift
+go run ./cmd/winmd-update          # bump the pins in testdata/PROVENANCE.json
 ```
 
 The test fixtures — `Windows.Win32.winmd` (Win32 metadata) and
 `Windows.Foundation.UniversalApiContract.winmd` (WinRT metadata, from the
 `Microsoft.Windows.SDK.Contracts` package) — are pinned by
 `testdata/PROVENANCE.json` (version + sha256), fetched on demand via the
-`nuget` subpackage into a gitignored `testdata/` path and sha256-verified.
+`pkg/nuget` subpackage into a gitignored `testdata/` path and sha256-verified.
 Offline runs skip.
 
 ## Architecture
+
+```
+pkg/winmd/           the reader (import path .../go-winmd/pkg/winmd)
+pkg/nuget/           NuGet flat-container fetch + provenance records
+cmd/winmd-update/    refreshes the testdata/PROVENANCE.json pins
+testdata/            PROVENANCE.json; the .winmd files are gitignored
+```
+
+Inside `pkg/winmd/`:
 
 ```
 PE container → CLI metadata root → heaps → tables → signatures / attributes
  (winmd.go)      (winmd.go)      (heaps.go) (tables.go)  (sig.go / attrs.go)
 ```
 
-- **`winmd.go`** — `Open`/`Parse`; PE walk via `debug/pe`; CLI (COR20) header;
+- **`pkg/winmd/winmd.go`** — `Open`/`Parse`; PE walk via `debug/pe`; CLI (COR20) header;
   metadata root + stream headers (`#~`/`#-`, `#Strings`, `#Blob`, `#GUID`).
-- **`heaps.go`** — `StringHeap`/`GUIDHeap`/`BlobHeap` + the `blobReader`
+- **`pkg/winmd/heaps.go`** — `StringHeap`/`GUIDHeap`/`BlobHeap` + the `blobReader`
   cursor (compressed-int decoding, sticky-error model).
-- **`tables.go`** — the typed `Table` enum (all 45 tables, spec names), the
+- **`pkg/winmd/tables.go`** — the typed `Table` enum (all 45 tables, spec names), the
   static `tableSchemas` column layout (§II.22) that sizes every table, coded
   indices resolved eagerly to `{Table, Row}`, and the 22 materialized tables'
   `*Row` structs decoded into eager slices (including the WinRT
   event/property tables: `Event`/`EventMap`, `Property`/`PropertyMap`,
   `MethodSemantics`).
-- **`flags.go`** — typed bitmask columns (`TypeAttributes`, `FieldAttributes`,
+- **`pkg/winmd/flags.go`** — typed bitmask columns (`TypeAttributes`, `FieldAttributes`,
   `MethodAttributes`, `ParamAttributes`, `PInvokeAttributes`,
   `EventAttributes`, `PropertyAttributes`, `MethodSemanticsAttributes`, …,
   §II.23.1) with spec member names and `String()` methods.
-- **`sig.go`** — `MethodSignature`/`FieldSignature`/`PropertySignature` → the
+- **`pkg/winmd/sig.go`** — `MethodSignature`/`FieldSignature`/`PropertySignature` → the
   recursive `TypeSig` grammar (§II.23.2), including generics
   (GENERICINST/VAR/MVAR).
-- **`attrs.go`** — `AttributesFor` decodes custom-attribute **values** (fixed +
+- **`pkg/winmd/attrs.go`** — `AttributesFor` decodes custom-attribute **values** (fixed +
   named args, §II.23.3), not just raw blobs.
-- **`constants.go`** — `ElementType` (Go-idiomatic names; spec `ELEMENT_TYPE_*`
+- **`pkg/winmd/constants.go`** — `ElementType` (Go-idiomatic names; spec `ELEMENT_TYPE_*`
   in the doc comments) and `DecodeConstant` for Constant-table blobs.
-- **`nuget/`** — stdlib-only NuGet flat-container fetch + provenance records;
+- **`pkg/nuget/`** — stdlib-only NuGet flat-container fetch + provenance records;
   used by the bindings generators' `fetch-metadata` and this module's fixture.
   `nuget.go` is the single-file path (`Fetch`/`ExtractFile`), one download per
   file. `multifile.go` serves meta-packages, where that model breaks down:
@@ -65,15 +77,22 @@ PE container → CLI metadata root → heaps → tables → signatures / attribu
   download from the extraction so one archive yields many files and many
   provenance records. Entry keys are full archive paths, never base names —
   a nupkg routinely ships the same file under several architectures.
+- **`cmd/winmd-update/`** — resolves the newest published version of each
+  `testdata/PROVENANCE.json` pin, fetches it into `testdata/` and rewrites
+  the record. A pin on a prerelease tracks prereleases, a stable pin tracks
+  stable only, and `isAhead` stops a pin ever being walked backwards. Driven
+  weekly by `.github/workflows/metadata-update.yml`, which runs the decode
+  suite against the *new* metadata and opens the bump as a PR — draft, with
+  the failing output in the body, when the new metadata does not decode.
 
 ## Spec alignment
 
 Every exported symbol carries its ECMA-335 6th-edition `§II.x` reference. Table
 IDs and flag columns are typed with spec member names. Untrusted lengths and
-row indices are bounds-checked and allocation-clamped (`corrupt_test.go`);
+row indices are bounds-checked and allocation-clamped (`pkg/winmd/corrupt_test.go`);
 corrupt files return structured errors, never panic or over-allocate.
 
-## Non-goals (see the package doc in `winmd.go`)
+## Non-goals (see the package doc in `pkg/winmd/winmd.go`)
 
 Deliberately omitted, evaluated against `microsoft/go-winmd`: no lazy per-row
 table access (the consumers scan every row), no generic `CodedIndex[T]` tag

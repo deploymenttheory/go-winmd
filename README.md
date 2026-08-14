@@ -36,10 +36,19 @@ attributes in the pinned `Windows.Win32.winmd` must decode with zero
 failures (`testdata/PROVENANCE.json` pins the fixture; it is fetched on
 demand and sha256-verified).
 
+## Layout
+
+```text
+pkg/winmd/           the reader — PE → CLI header → heaps → tables → signatures
+pkg/nuget/           stdlib-only NuGet flat-container fetch + provenance records
+cmd/winmd-update/    refreshes the pinned metadata in testdata/PROVENANCE.json
+testdata/            PROVENANCE.json pins; the .winmd files are fetched on demand
+```
+
 ## Usage
 
 ```go
-import "github.com/deploymenttheory/go-winmd"
+import "github.com/deploymenttheory/go-winmd/pkg/winmd"
 
 file, err := winmd.Open("Windows.Win32.winmd")
 if err != nil { /* ... */ }
@@ -55,9 +64,29 @@ sig, err := file.MethodSignature(file.Tables.Methods[0].Signature)
 attrs := file.AttributesFor(winmd.CodedIndex{Table: winmd.TableTypeDef, Row: 1})
 ```
 
-The `nuget` subpackage downloads winmd files from NuGet (flat-container API)
-with provenance records — used by the bindings generators' `fetch-metadata`
-commands and by this module's own test fixture.
+The `pkg/nuget` subpackage downloads winmd files from NuGet (flat-container
+API) with provenance records — used by the bindings generators'
+`fetch-metadata` commands and by this module's own test fixture.
+
+## Keeping the metadata current
+
+`testdata/PROVENANCE.json` pins each upstream NuGet package by version and
+sha256. `cmd/winmd-update` resolves the newest published version of each pin,
+fetches it and rewrites the record:
+
+```sh
+go run ./cmd/winmd-update -check   # report what has moved upstream
+go run ./cmd/winmd-update          # bump the pins and cache the new files
+```
+
+A pin on a prerelease (`Windows.Win32.winmd` ships as `-preview`) tracks
+prereleases; a pin on a stable version tracks stable versions only, and a pin
+is never walked backwards.
+
+The [Metadata Update](.github/workflows/metadata-update.yml) workflow runs
+this weekly (and on manual dispatch). When a pin moves it runs the full
+decode suite against the *new* metadata and opens a PR — as a draft, with the
+failing test output in the body, if the new metadata does not decode cleanly.
 
 ## Non-goals
 

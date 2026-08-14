@@ -8,13 +8,17 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/deploymenttheory/go-winmd/nuget"
+	"github.com/deploymenttheory/go-winmd/pkg/nuget"
 )
 
 // The brute-force test suites run against real winmd files pinned by
 // testdata/PROVENANCE.json: the Win32 metadata (Windows.Win32.winmd) and the
 // WinRT UniversalApiContract. The files themselves are gitignored and
 // fetched on demand (sha256-verified); offline runs skip.
+
+// testdataDir is the repository-root testdata/, shared with
+// cmd/winmd-update so one PROVENANCE.json pins the fixtures for both.
+var testdataDir = filepath.Join("..", "..", "testdata")
 
 // fixtureState serializes the fetch of one pinned fixture.
 type fixtureState struct {
@@ -30,7 +34,7 @@ var fixtureStates sync.Map // provenance package name → *fixtureState
 // when the fixture cannot be acquired.
 func fixtureFile(t *testing.T, pkgID, matchPackage string) *File {
 	t.Helper()
-	records, err := nuget.ReadProvenance(filepath.Join("testdata", "PROVENANCE.json"))
+	records, err := nuget.ReadProvenance(filepath.Join(testdataDir, "PROVENANCE.json"))
 	if err != nil || len(records) == 0 {
 		t.Fatalf("reading testdata/PROVENANCE.json: %v", err)
 	}
@@ -46,7 +50,7 @@ func fixtureFile(t *testing.T, pkgID, matchPackage string) *File {
 	}
 	// The pin's file is the path inside the nupkg (possibly nested); the
 	// local cache uses just the base name.
-	path := filepath.Join("testdata", filepath.Base(pin.File))
+	path := filepath.Join(testdataDir, filepath.Base(pin.File))
 
 	stateAny, _ := fixtureStates.LoadOrStore(matchPackage, &fixtureState{})
 	state := stateAny.(*fixtureState)
