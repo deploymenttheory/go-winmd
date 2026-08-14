@@ -7,21 +7,32 @@ blobs/flags/signatures, `§II.24` physical layout, `§II.25` PE format).
 ## Materialized vs sized-only tables
 
 All 45 tables are transcribed in `tableSchemas` so that **every** table's rows
-can be sized correctly (needed to step over tables and to compute coded-index
-widths). Only the 15 tables the Windows projections consume are decoded into
-typed `*Row` slices:
+can be sized correctly. Sizing is needed for two reasons: to step over the
+tables that are not decoded, and to compute coded-index widths, which depend
+on the row counts of the tables a coded index can point into.
+
+The 22 tables the Windows projections consume are decoded into typed `*Row`
+slices:
 
 > TypeRef, TypeDef, Field, MethodDef, Param, InterfaceImpl, MemberRef,
-> Constant, CustomAttribute, ClassLayout, FieldLayout, ModuleRef, TypeSpec,
-> ImplMap, NestedClass.
+> Constant, CustomAttribute, ClassLayout, FieldLayout, EventMap, Event,
+> PropertyMap, Property, MethodSemantics, ModuleRef, TypeSpec, ImplMap,
+> NestedClass, GenericParam, GenericParamConstraint.
 
-The other 30 are stepped over (their sizes are known; their rows are not built).
+The remaining 23 are stepped over. Their sizes are known; their rows are
+never built.
+
+Seven of those 22 arrived after the original Win32-only set, as additive
+changes for `go-bindings-winrt`: `EventMap`, `Event`, `PropertyMap`,
+`Property`, `MethodSemantics`, `GenericParam` and `GenericParamConstraint`.
+The generics and event/property sections below cover why.
 
 ## Heaps
 
 `#~` and `#-` (the uncompressed variant) both feed the table decoder;
 `#Strings`, `#Blob`, `#GUID` are exposed as typed heaps. `#US` (user strings)
-is recognized and skipped — IL plumbing that winmd projections never reference.
+is recognized and skipped. It is IL plumbing that winmd projections never
+reference.
 
 ## What is intentionally not supported
 
@@ -30,7 +41,8 @@ These are deliberate non-goals (see the package doc), not gaps:
 - **No lazy row access.** Consumers scan every row of every materialized table,
   so eager typed slices are simpler and faster than an on-demand `At(row)` API.
 - **No generic `CodedIndex[T]` tag types.** Coded indices resolve eagerly to a
-  concrete `{Table, Row}` pair — strictly more informative than a tag+index.
+  concrete `{Table, Row}` pair, which is strictly more informative than a
+  tag plus index.
 - **No table-layout code generation.** `tableSchemas` is the hand-transcribed
   §II.22 layout; a schema-consistency test guards transcription errors.
 - **No BYREF / multi-rank arrays in signatures.** The Win32 and WDK winmds
@@ -46,12 +58,12 @@ Generics **are** decoded, as the shared foundation for `go-bindings-winrt`:
 - Tables: `GenericParam` (§II.22.20) and `GenericParamConstraint` (§II.22.21)
   are materialized; `TypeSpecSignature` decodes a TypeSpec blob (§II.23.2.14).
 
-The Win32 and WDK winmds contain **zero** generic constructs — `TestWin32HasNoGenerics`
-asserts this — so this support is inert for those projections and their
-generated output is unaffected. It exists for WinRT metadata (`IVector<T>`,
-`IAsyncOperation<T>`, parameterized delegates/events). The WinRT *emitter* and
-*runtime* (HSTRING, IInspectable, activation) live in `go-bindings-winrt`;
-this is only the reader layer.
+The Win32 and WDK winmds contain **zero** generic constructs, which
+`TestWin32HasNoGenerics` asserts, so this support is inert for those
+projections and their generated output is unaffected. It exists for WinRT
+metadata (`IVector<T>`, `IAsyncOperation<T>`, parameterized delegates and
+events). The WinRT *emitter* and *runtime* (HSTRING, IInspectable,
+activation) live in `go-bindings-winrt`; this is only the reader layer.
 
 ## Events and properties (the WinRT member model)
 
@@ -70,17 +82,17 @@ prerequisites for `go-bindings-winrt`:
 
 The brute-force suites run against a second pinned fixture, the
 `Windows.Foundation.UniversalApiContract.winmd` from the
-`Microsoft.Windows.SDK.Contracts` NuGet package (that package ships ~94
-per-contract winmds — there is no merged `Windows.winmd` on NuGet; its
-`Windows.WinMD` entry is a type-forwarder facade). The Win32 winmd contains
-**zero** event/property rows — `TestWin32HasNoEventsOrProperties` asserts
-this — so the addition is inert for the Win32/WDK projections.
+`Microsoft.Windows.SDK.Contracts` NuGet package. That package ships ~94
+per-contract winmds; there is no merged `Windows.winmd` on NuGet, and its
+`Windows.WinMD` entry is a type-forwarder facade. The Win32 winmd contains
+**zero** event/property rows, which `TestWin32HasNoEventsOrProperties`
+asserts, so the addition is inert for the Win32/WDK projections.
 
 ## Comparison with microsoft/go-winmd
 
 `microsoft/go-winmd` is the closest prior art. It was evaluated and not adopted:
-it has no tagged releases, depends on `golang.org/x/tools` for codegen, and —
-critically for these projections — lacks a custom-attribute **value** decoder,
+it has no tagged releases, depends on `golang.org/x/tools` for codegen, and,
+critically for these projections, lacks a custom-attribute **value** decoder,
 Constant-table decoding, and `#-` stream handling. Its lazy-table model is also
 the wrong shape for a consumer that scans 100% of rows. This reader borrows its
 good practices (spec-referenced docs, typed enums, bounds-checked allocation)
