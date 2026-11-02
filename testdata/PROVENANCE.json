@@ -1,18 +1,18 @@
 [
   {
     "package": "Microsoft.Windows.SDK.Win32Metadata",
-    "version": "71.0.26-preview",
-    "source": "https://api.nuget.org/v3-flatcontainer/microsoft.windows.sdk.win32metadata/71.0.26-preview/microsoft.windows.sdk.win32metadata.71.0.26-preview.nupkg",
+    "version": "71.0.37-preview",
+    "source": "https://api.nuget.org/v3-flatcontainer/microsoft.windows.sdk.win32metadata/71.0.37-preview/microsoft.windows.sdk.win32metadata.71.0.37-preview.nupkg",
     "file": "Windows.Win32.winmd",
-    "sha256": "0c0e5f11543fd654f9fad44c1952494bf407d6b067d93c2e5eef4fcf5d42edde",
-    "fetched": "2026-09-14"
+    "sha256": "73e57def24d91f2ec025238100099d5333dd441cab5e843cd2fa8f0617472d56",
+    "fetched": "2026-11-02"
   },
   {
     "package": "Microsoft.Windows.SDK.Contracts",
-    "version": "10.0.28000.2705",
-    "source": "https://api.nuget.org/v3-flatcontainer/microsoft.windows.sdk.contracts/10.0.28000.2705/microsoft.windows.sdk.contracts.10.0.28000.2705.nupkg",
+    "version": "10.0.28000.2957",
+    "source": "https://api.nuget.org/v3-flatcontainer/microsoft.windows.sdk.contracts/10.0.28000.2957/microsoft.windows.sdk.contracts.10.0.28000.2957.nupkg",
     "file": "ref/netstandard2.0/Windows.Foundation.UniversalApiContract.winmd",
-    "sha256": "f45fe7a2995fb525f6b8cbe804c29ac7ecab599ef7a2f3005d39369c7c155e12",
-    "fetched": "2026-08-31"
+    "sha256": "3775a216e50fa417f5dc262a776a0ee32e12837bd22e8450339aa8193e3db5c1",
+    "fetched": "2026-11-02"
   }
 ]
